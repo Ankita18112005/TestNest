@@ -1,15 +1,22 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Calendar, Moon, Sun, User } from 'lucide-react';
+import { Calendar, User, Home } from 'lucide-react';
+import { useToast } from './Toast';
 
 const Navbar = () => {
-  const { user, theme, toggleTheme, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast('You have been logged out. See you soon! 👋', 'info');
+      navigate('/');
+    } catch (err) {
+      toast('Failed to logout. Please try again.', 'error');
+    }
   };
 
   return (
@@ -20,22 +27,19 @@ const Navbar = () => {
           TimeNest
         </Link>
         <div className="navbar-nav">
-          <button onClick={toggleTheme} className="theme-toggle" aria-label="Toggle Theme">
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
+          <Link to="/book" className="btn btn-ghost" style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+            <Home size={18} />
+            Home
+          </Link>
+
           
           {user ? (
             <>
               {user.isAdmin ? (
-                <>
-                  <Link to="/admin/dashboard" className="btn btn-ghost">Sessions</Link>
-                  <Link to="/admin/payments" className="btn btn-ghost">Payments</Link>
-                  <Link to="/admin/clients" className="btn btn-ghost">Clients</Link>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', color: 'var(--primary-accent)', fontWeight: '600'}}>
-                    <User size={18} />
-                    Admin
-                  </div>
-                </>
+                <Link to="/admin/dashboard" className="btn btn-ghost" style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                  <User size={18} />
+                  Admin
+                </Link>
               ) : (
                 <Link to="/dashboard" className="btn btn-ghost" style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
                   <User size={18} />

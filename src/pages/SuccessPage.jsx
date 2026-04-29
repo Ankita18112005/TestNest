@@ -6,22 +6,15 @@ import { CheckCircle } from 'lucide-react';
 const SuccessPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, addBooking } = useAuth();
+  const { user } = useAuth();
   
   const bookingData = location.state;
 
   useEffect(() => {
     if (!bookingData) {
       navigate('/');
-    } else {
-      // Automatically add booking to context if user is logged in
-      // If not logged in, we could temporarily store it, but for demo let's just add it when they register
-      if (user) {
-        addBooking(bookingData);
-      }
     }
-    // eslint-disable-next-line
-  }, []);
+  }, [bookingData, navigate]);
 
   if (!bookingData) return null;
 

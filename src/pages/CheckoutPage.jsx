@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
 
 const CheckoutPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { date, time, duration } = location.state || {};
+  const { currentUser, loginAnonymously } = useAuth();
+  const toast = useToast();
+  const { date, time, duration, utcDate } = location.state || {};
 
   const [step, setStep] = useState(1); // 1: Details, 2: Mock PayPal
   const [formData, setFormData] = useState({ name: '', email: '', requirements: '' });
 
+  useEffect(() => {
+    if (!date || !time) {
+      navigate('/');
+    }
+  }, [date, time, navigate]);
+
   if (!date || !time) {
-    navigate('/');
     return null;
   }
 
@@ -24,9 +33,53 @@ const CheckoutPage = () => {
     setStep(2);
   };
 
-  const handleCompletePayment = () => {
-    // In a real app we'd verify payment and create booking on server
-    navigate('/success', { state: { ...formData, date, time, duration } });
+  const handleCompletePayment = async () => {
+    try {
+      let finalUid = currentUser?.uid;
+      
+      if (!currentUser) {
+        const authResult = await loginAnonymously(formData);
+        finalUid = authResult.user.uid;
+      }
+      
+      // Save the booking to Firestore
+      const bookingData = {
+        userId: finalUid,
+        userName: formData.name,
+        userEmail: formData.email,
+        requirements: formData.requirements,
+        date: new Date(date).toISOString(),
+        time: time,
+        duration: duration,
+        utcDate: utcDate || new Date(date).toISOString(),
+        status: 'Confirmed',
+        createdAt: new Date().toISOString()
+      };
+      
+      const { collection, addDoc, doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      const bookingRef = await addDoc(collection(db, 'users', finalUid, 'bookings'), bookingData);
+      
+      // Also save to payments collection
+      const paymentData = {
+        amount: duration === 1 ? 100 : 180,
+        currency: 'USD',
+        status: 'Completed',
+        date: new Date().toISOString(),
+        clientName: formData.name,
+        clientEmail: formData.email,
+        bookingId: bookingRef.id,
+        createdAt: new Date().toISOString()
+      };
+      
+      await addDoc(collection(db, 'users', finalUid, 'payments'), paymentData);
+      
+      navigate('/success', { state: { ...formData, date, time, duration } });
+    } catch (error) {
+      console.error("Payment/booking failed", error);
+      toast("Failed to confirm booking: " + error.message, 'error');
+    }
   };
 
   return (
@@ -37,10 +90,10 @@ const CheckoutPage = () => {
           <div className="card">
             <h2 style={{ marginBottom: '1.5rem', textAlign: 'center' }}>Complete Booking Details</h2>
             
-            <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--border-color)' }}>
-              <p><strong>Session:</strong> {duration} Hour{duration > 1 ? 's' : ''}</p>
-              <p><strong>Date:</strong> {format(new Date(date), 'MMMM d, yyyy')}</p>
-              <p><strong>Time:</strong> {time}</p>
+            <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1.25rem 1.5rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--border-color)' }}>
+              <p style={{ marginBottom: '0.75rem' }}><strong>Session:</strong> {duration} Hour{duration > 1 ? 's' : ''}</p>
+              <p style={{ marginBottom: '0.75rem' }}><strong>Date:</strong> {format(new Date(date), 'MMMM d, yyyy')}</p>
+              <p style={{ marginBottom: 0 }}><strong>Time:</strong> {time}</p>
             </div>
 
             <form onSubmit={handleProceedToPayment}>
